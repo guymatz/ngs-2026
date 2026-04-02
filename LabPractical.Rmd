@@ -24,45 +24,90 @@ req_pkgs <- c(
     # grammar of data manipulation
     # https://dplyr.tidyverse.org/
     "dplyr",
+
     # Tools for Splitting, Applying and Combining Data
     # https://cran.r-project.org/web/packages/plyr/index.html
     "plyr",
+
     # Exploratory Data Analysis and Normalization for RNA-Seq
     # https://bioconductor.org/packages/devel/bioc/vignettes/EDASeq/inst/doc/EDASeq.html
     "EDASeq",
+
     # provides a visual exploratory tool on correlation matrix
     # https://www.rdocumentation.org/packages/corrplot/versions/0.95
     "corrplot",
+
     # Unified plotting tools for statistics commonly used, such as GLM, time
     # series, PCA families, clustering and survival analysis
     # https://cran.r-project.org/web/packages/ggfortify/index.html
     "ggfortify",
-    # Calculate normalization factors to scale the raw library sizes
+
+    # https://bioconductor.org/packages/release/bioc/html/edgeR.html
+    # Differential expression analysis of sequence count data
     "edgeR",
-    # methods for filtering genes from high-throughput experiments
+
     # https://www.bioconductor.org/packages/release/bioc/html/genefilter.html
+    # methods for filtering genes from high-throughput experiments
     "genefilter",
+    
+    # https://bioconductor.org/packages/release/bioc/html/limma.html
+    # Linear Models for Microarray and Omics Data
     "limma",
+
+    # https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html
+    # A universal enrichment tool for interpreting omics data
     "clusterProfiler",
+
+    # https://bioconductor.org/packages/release/bioc/html/pathview.html
+    # a tool set for pathway based data integration and visualization
     "pathview",
+
+    # https://bioconductor.org/packages/release/bioc/html/AnnotationDbi.html
+    # Manipulation of SQLite-based annotations in Bioconductor
     "AnnotationDbi",
-    # library(org.Hs.eg.db)
-    # We're dealing with mice, not humans
-    "org.Mm.eg.db",
+
+    # https://bioconductor.org/packages/release/data/annotation/html/org.Hs.eg.db.html
+    # Genome wide annotation for Human, primarily based on mapping using Entrez Gene identifiers
+    "org.Hs.eg.db",
+
+    # https://bioconductor.org/packages/release/bioc/html/ReactomePA.html
+    # Reactome Pathway Analysis
     "ReactomePA",
+
+    # https://bioconductor.org/packages/release/bioc/html/enrichplot.html
+    # Visualization of Functional Enrichment Result
     "enrichplot",
+
+    # https://cran.r-project.org/web/packages/ggnewscale
+    # Multiple Fill and Colour Scales in 'ggplot2'
     "ggnewscale",
+    
+    # https://cran.r-project.org/web/packages/ggupset
+    # Combination Matrix Axis for 'ggplot2' to Create 'UpSet' Plots
     "ggupset",
+
+    # https://cran.r-project.org/web/packages/ggridges
+    # Ridgeline Plots in 'ggplot2'
     "ggridges",
+
+    # https://bioconductor.org/packages/release/bioc/html/enrichplot.html
+    # Visualization of Functional Enrichment Result
     "enrichplot",
+
+    # https://cran.r-project.org/web/packages/knitr
+    # A General-Purpose Package for Dynamic Report Generation in R
     "knitr",
+
+    # https://bioconductor.org/packages/release/bioc/html/DESeq2.html
+    # Differential gene expression analysis based on the negative binomial distribution
     "DESeq2",
-    "TxDb.Mmusculus.UCSC.mm39.knownGene",
-    "BSgenome.Mmusculus.UCSC.mm39",
-    "googledrive",
-    # OAuth for google drive
-    "httpuv",
+
+    # https://cran.r-project.org/web/packages/pheatmap
+    # Pretty Heatmaps
     "pheatmap",
+
+    # https://cran.r-project.org/web/packages/cluster
+    # "Finding Groups in Data": Cluster Analysis Extended Rousseeuw et
     "cluster"
 )
 print("Done!")
@@ -88,18 +133,19 @@ print("Done!")
 
 
 ```{r LoadData}
-
+# Download data file from Google Drive, if necessary
+# Then load the data
 google_drive_file_id <- "1la5_fzzoEVEf5sLdpW8iD2S-eHr3DPfr"
 file_url = paste0("https://drive.google.com/uc?export=download&id=",
                   google_drive_file_id)
-data_file <- "SRP027258.rds"
+local_data_file <- "SRP027258.rds"
 server_data_file <- paste0("/opt/omicsdata/datasets")
 
-if (! file.exists(data_file) && ! file.exists(server_data_file)) {
-  download.file(file_url, data_file)
+if (! file.exists(local_data_file) && ! file.exists(server_data_file)) {
+  download.file(file_url, local_data_file)
 }
 
-data <- readRDS(data_file)
+data <- readRDS(local_data_file)
 print("Done!")
 ```
 
