@@ -19,6 +19,12 @@ format: pdf
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Biological Question
+"Compare control and treated patients at the 6th & 24h time point.
+The information is stored in the `$sra.sample_attributes` in colData() object."
+
+## Define Required Packages
+
 ```{r Packages}
 req_pkgs <- c(
     # grammar of data manipulation
@@ -113,16 +119,16 @@ req_pkgs <- c(
 print("Done!")
 ```
 
+## Install Required Packages
 ```{r InstallPackages, warning=FALSE, message=FALSE, results='hide'}
 if (!require("BiocManager", quietly = TRUE)) {
     install.packages("BiocManager")
     BiocManager::install(version = "3.22")
 }
-CHANGED = FALSE
+
 for (pkg in req_pkgs) {
     if (!require(pkg, character.only=TRUE, quietly = TRUE)) {
         BiocManager::install(pkg)
-        CHANGED = TRUE
     }
     #print(paste("Loading ", pkg))
     library(pkg, character.only=TRUE)
@@ -131,7 +137,7 @@ for (pkg in req_pkgs) {
 print("Done!")
 ```
 
-
+## Load Data
 ```{r LoadData}
 # Download data file from Google Drive, if necessary
 # Then load the data
@@ -149,3 +155,63 @@ data <- readRDS(local_data_file)
 print("Done!")
 ```
 
+## Let's Give Our Data a Cleaning
+```{r}
+# This does nothing since we have data in all rows
+sum(is.na(data$sra.sample_attributes))
+```
+
+### We identify genes that have all zero counts across all samples and remove them
+
+#### Before
+```{r}
+print(table(rowSums(assay(data, "raw_counts")) == 0))
+```
+
+#### After
+```{r}
+# We keep the genes with the sum > 0
+data_pre = data
+data <- data[rowSums(assay(data, "raw_counts")) > 0, ]
+print(table(rowSums(assay(data, "raw_counts")) == 0))
+```
+
+## After cleaning the data, we add columns for . . .
+Group - Normal vs Tumoral
+Treatment - DMSO vs SFN
+Timing - 6hr vs 24hr
+
+```{r}
+data$cell_line <- as.factor(ifelse(grepl('Normal', data$sra.sample_attributes),
+                               "normal", "tumoral"))
+data$treatment <- as.factor(ifelse(grepl('DMSO', data$sra.sample_attributes),
+                                   "dmso", "sfn"))
+data$harvest_time <- as.factor(ifelse(grepl('6 hrs', data$sra.sample_attributes),
+                                "6", "24"))
+```
+
+We can start by visualizing the data using a boxplot. Before plotting, it is often necessary to transform the count matrix using a `log(counts + 1)` transformation. This transformation is important because:
+
+  - RNA-seq samples often have different sequencing depths. Log transformation stabilizes the variance and makes the distributions more comparable across samples;
+  - most genes have low counts, and a few have very high counts. Log transformation makes the data more balanced and easier to analyze;
+  - adding 1 in log(counts + 1) allows us to transform zero counts, which would otherwise be undefined;
+  - improve interpretability.
+  
+```{r}
+raw_counts <- assay(data, "raw_counts")
+# To make readable the boxplot on all we reduce the string of column names.
+colnames(raw_counts) <- substr(colnames(raw_counts), 4, 10)
+
+# For faster plotting, use only the first 20 samples
+boxplot(raw_counts[, 1:36])
+boxplot(log1p(raw_counts)[, 1:36])
+
+features = c("cell_line", "treatment", "harvest_time")
+for (f in features) {
+  d <- data@colData[f][, 1]
+  boxplot(log1p(raw_counts)[, 1:20], title = f, col = col, xlab = "Sample",
+          ylab = "log1p expression", ylim = c(0, 20),  las = 2, cex.axis = 0.7)
+  legend("top", legend = c(levels(d)), col = 1:length(levels(d)),
+         pch = 20, cex = 0.7, ncol = 2)
+}
+```
