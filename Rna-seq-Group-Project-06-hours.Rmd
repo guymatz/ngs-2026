@@ -138,10 +138,10 @@ if (!require("BiocManager", quietly = TRUE)) {
 
 for (pkg in req_pkgs) {
     #print(paste("Loading ", pkg))
-    if (!require(pkg, character.only=TRUE, quietly = TRUE)) {
+    if (!require(pkg, quietly = TRUE)) {
         BiocManager::install(pkg)
+        library(pkg, character.only=TRUE)
     }
-    library(pkg, character.only=TRUE)
 }
 
 print("Done!")
@@ -155,13 +155,19 @@ google_drive_file_id <- "1la5_fzzoEVEf5sLdpW8iD2S-eHr3DPfr"
 file_url = paste0("https://drive.google.com/uc?export=download&id=",
                   google_drive_file_id)
 local_data_file <- "SRP027258.rds"
-server_data_file <- paste0("/opt/omicsdata/datasets")
+server_data_file <- paste0("/opt/omicsdata/datasets/", local_data_file)
 
 if (! file.exists(local_data_file) && ! file.exists(server_data_file)) {
   download.file(file_url, local_data_file)
 }
 
-data <- readRDS(local_data_file)
+data_file = ""
+if (file.exists(server_data_file)) {
+  data_file = server_data_file
+} else {
+  data_file = local_data_file
+}
+data <- readRDS(data_file)
 print("Done!")
 ```
 
