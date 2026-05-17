@@ -1,0 +1,850 @@
+---
+title: "Rna-seq Group Project"
+author: "Omid Asghari Azhiri"
+date: "2026-05-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Biological Question
+"Compare control and treated patients at the 6th & 24h time point.
+The information is stored in the `$sra.sample_attributes` in colData() object."
+
+## Define Required Packages
+
+```{r Packages}
+req_pkgs <- c(
+
+    # grammar of data manipulation
+    # https://dplyr.tidyverse.org/
+    "dplyr",
+
+    # Tools for Splitting, Applying and Combining Data
+    # https://cran.r-project.org/web/packages/plyr/index.html
+    "plyr",
+
+    # Exploratory Data Analysis and Normalization for RNA-Seq
+    # https://bioconductor.org/packages/devel/bioc/vignettes/EDASeq/inst/doc/EDASeq.html
+    "EDASeq",
+
+    # provides a visual exploratory tool on correlation matrix
+    # https://www.rdocumentation.org/packages/corrplot/versions/0.95
+    "corrplot",
+
+    # Unified plotting tools for statistics commonly used, such as GLM, time
+    # series, PCA families, clustering and survival analysis
+    # https://cran.r-project.org/web/packages/ggfortify/index.html
+    "ggfortify",
+
+    # https://bioconductor.org/packages/release/bioc/html/edgeR.html
+    # Differential expression analysis of sequence count data
+    "edgeR",
+
+    # https://www.bioconductor.org/packages/release/bioc/html/genefilter.html
+    # methods for filtering genes from high-throughput experiments
+    "genefilter",
+    
+    # https://bioconductor.org/packages/release/bioc/html/limma.html
+    # Linear Models for Microarray and Omics Data
+    "limma",
+
+    # https://bioconductor.org/packages/release/bioc/html/clusterProfiler.html
+    # A universal enrichment tool for interpreting omics data
+    "clusterProfiler",
+
+    # https://bioconductor.org/packages/release/bioc/html/pathview.html
+    # a tool set for pathway based data integration and visualization
+    "pathview",
+
+    # https://bioconductor.org/packages/release/bioc/html/AnnotationDbi.html
+    # Manipulation of SQLite-based annotations in Bioconductor
+    "AnnotationDbi",
+
+    # https://bioconductor.org/packages/release/data/annotation/html/org.Hs.eg.db.html
+    # Genome wide annotation for Human, primarily based on mapping using Entrez Gene identifiers
+    "org.Hs.eg.db",
+    "TxDb.Hsapiens.UCSC.hg38.knownGene",
+    "BSgenome.Hsapiens.UCSC.hg38",
+
+    # https://bioconductor.org/packages/release/bioc/html/ReactomePA.html
+    # Reactome Pathway Analysis
+    "ReactomePA",
+
+    # https://bioconductor.org/packages/release/bioc/html/enrichplot.html
+    # Visualization of Functional Enrichment Result
+    "enrichplot",
+
+    # https://cran.r-project.org/web/packages/ggnewscale
+    # Multiple Fill and Colour Scales in 'ggplot2'
+    "ggnewscale",
+    
+    # https://cran.r-project.org/web/packages/ggupset
+    # Combination Matrix Axis for 'ggplot2' to Create 'UpSet' Plots
+    "ggupset",
+
+    # https://cran.r-project.org/web/packages/ggrepel/
+    # Provides text and label geoms for 'ggplot2' that help to avoid
+    # overlapping text labels
+    "ggrepel",
+
+    # https://cran.r-project.org/web/packages/ggridges
+    # Ridgeline Plots in 'ggplot2'
+    "ggridges",
+
+    # https://bioconductor.org/packages/release/bioc/html/enrichplot.html
+    # Visualization of Functional Enrichment Result
+    "enrichplot",
+
+    # https://cran.r-project.org/web/packages/knitr
+    # A General-Purpose Package for Dynamic Report Generation in R
+    "knitr",
+
+    # https://bioconductor.org/packages/release/bioc/html/DESeq2.html
+    # Differential gene expression analysis based on the negative binomial distribution
+    "DESeq2",
+
+    # https://cran.r-project.org/web/packages/pheatmap
+    # Pretty Heatmaps
+    "pheatmap",
+
+    # https://cran.r-project.org/web/packages/cluster
+    # "Finding Groups in Data": Cluster Analysis Extended Rousseeuw et
+    "cluster",
+    
+    "Biobase",
+    "BiocGenerics",
+    "GenomeInfoDb",
+    "GenomicRanges",
+    "IRanges",
+    "MatrixGenerics",
+    "matrixStats",
+    "recount3",
+    "S4Vectors",
+    "stats4",
+    "stringr",
+    "SummarizedExperiment"
+  )
+print("Done!")
+```
+
+## Install Required Packages
+```{r InstallPackages, warning=FALSE, message=FALSE, results='hide'}
+if (!require("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+    BiocManager::install(version = "3.23")
+}
+
+for (pkg in req_pkgs) {
+    if (!require(pkg, character.only=TRUE, quietly = TRUE)) {
+        print(paste("Installing:", pkg))
+        BiocManager::install(ask = FALSE, pkg)
+    }
+    # print(paste("Loading ", pkg))
+    library(pkg, character.only=TRUE)
+}
+
+print("Done!")
+```
+
+## Load Data
+```{r LoadData}
+# Download data file from Google Drive, if necessary
+# Then load the data
+google_drive_file_id <- "1la5_fzzoEVEf5sLdpW8iD2S-eHr3DPfr"
+file_url = paste0("https://drive.google.com/uc?export=download&id=",
+                  google_drive_file_id)
+local_data_file <- "SRP027258.rds"
+server_data_file <- paste0("/opt/omicsdata/datasets/", local_data_file)
+
+if (! file.exists(local_data_file) && ! file.exists(server_data_file)) {
+  download.file(file_url, local_data_file)
+}
+
+data_file = ""
+if (file.exists(server_data_file)) {
+  data_file = server_data_file
+} else {
+  data_file = local_data_file
+}
+data <- readRDS(data_file)
+print("Done!")
+```
+
+```{r DataWrangling}
+#colData(data)$time <- str_extract(colData(data)$sra.sample_attributes, "(?<=time point;;)[^|]+")
+#colData(data)$state <- ifelse(str_detect(colData(data)$sra.sample_attributes, "control"), "control", "treated")
+#colData(data)$cellTypes <- str_extract(colData(data)$sra.sample_attributes, "(?<=time point;;)[^|]+")
+#full_names <- str_extract(colData(data)$sra.sample_attributes, "(?<=cell type;;)[^|]+")
+#colData(data)$cellTypes <- str_extract(full_names, "(?<=\\().*?(?=\\))")
+
+data$cellTypes <- as.factor(ifelse(grepl('Normal', data$sra.sample_attributes),
+                                  "normal", "turmoral"
+                                  )
+                          )
+#data$CellLine <- as.factor(ifelse(grepl('PC-3', data$sra.sample_attributes),
+data$CellLine <- as.factor(ifelse(grepl('PC-3', data$sra.sample_attributes),
+                               "pc3", ifelse(grepl('LNCaP',
+                                                    data$sra.sample_attributes),
+                                                    'lncap', 'prec'
+                                                    )
+                                              )
+                            )
+#data$TreatedWith <- as.factor(ifelse(grepl('DMSO', data$sra.sample_attributes),
+data$state <- as.factor(ifelse(grepl('DMSO', data$sra.sample_attributes),
+                                   "control", "sfn"))
+#data$TimePoint <- as.factor(ifelse(grepl('6 hrs', data$sra.sample_attributes),
+data$time <- as.factor(ifelse(grepl('6 hrs', data$sra.sample_attributes),
+                                "6", "24"))
+```
+
+## Separate our data into two sets
+```{r Separate6and24}
+data_6 = data[, data$time == "6"]
+data_24 = data[, data$time == "24"]
+```
+
+```{r GroupSamplesByTime}
+# Step 1: Group the samples by Time
+group_colors_24 <- c("dodgerblue", "lightgreen")
+raw_count_24 <- assay(data_24, "raw_counts")
+
+# For faster plotting, use only the first 20 samples
+boxplot(raw_count_24)
+
+# To make readable the boxplot on all we reduce the string of column names.
+colnames(raw_count_24) <- substr(colnames(raw_count_24), 6, 9)
+boxplot(log1p(raw_count_24))
+
+col_24 <- data_24$state
+#levels(col)
+#levels(col_24) <- c(1:length(col_24))
+
+boxplot(log1p(raw_count_24), col = group_colors_24, xlab = "Sample", ylab = "log1p expression",  las = 2, cex.axis = 0.7)
+legend("top", legend = levels(col_24), col = group_colors_24, pch = 20, cex = 0.7, ncol = 2)
+
+title("At 24 Hours")
+```
+
+```{r PCA}
+pca_24 <- prcomp(t(log1p(raw_count_24)))
+summary(pca_24)$importance
+```
+```{r AutoPlot}
+autoplot(pca_24)
+```
+
+```{r ScrennPlot}
+screeplot(pca_24, type = c("lines"))
+```
+## Lab 1 - GC Content
+# GC content bias evaluation
+
+GC content can introduce biases in library preparation and sequencing, potentially affecting the quantification of gene expression.
+It's important to check GC content bias for eventually filtering out sequences.  
+
+First, we need to retrieve the amount of *GC* for each gene. To do this we use the **rowRanges** row variables and the **getGeneLengthAndGCContent** function of the *EDASeq* package.
+
+>**Warning**: the *gc-content* and length recovery command may take a few minutes.
+
+```{r, GetGCcontent}
+ensid_24 <- as.character(rowRanges(data_24)$gene_id)
+ensid_24 <- substr(ensid_24, 1, 15)
+
+# we specify genome assembly hg38 and org.db as mode to retrieve the information
+gc_24 <- getGeneLengthAndGCContent(id = ensid_24, org = "hg38", mode = "org.db")
+```
+
+We obtain a numeric matrix with two columns: gene length and GC-content. 
+
+We notice that some genes have no information about GC and length, so we have to eliminate them to check for GC bias.
+
+```{r RawCounts}
+table(is.na(gc_24[, 2]))
+
+gc_24 <- gc_24[!is.na(gc_24[, 2]), ]
+
+rowData(data_24)$ensid <- ensid_24
+# Remove the genes without gc content information from the SummarizedExperiment object
+data_24 <- data_24[rowData(data_24)$ensid  %in% rownames(gc_24), ]
+
+raw_count_24 <- assay(data_24, "raw_counts")
+row.names(raw_count_24) <- row.names(gc_24)
+```
+
+Sometimes there are double names in the row names.
+
+```{r Duplicated}
+table(duplicated(row.names(raw_count_24)))
+```
+
+We remove the duplicated row names.
+
+```{r DeDuplicated}
+dup_24 <- duplicated(row.names(raw_count_24))
+
+gc_24 <- gc_24[!dup_24, ]
+raw_count_24 <- raw_count_24[!dup_24, ]
+data_24 <- data_24[!dup_24, ]
+table(duplicated(row.names(raw_count_24)))
+```
+
+Then, we create an object of class **SeqExpressionSet** to visualize the GC content. In particular, we use the `newSeqExpressionSet()` function of the *EDASeq* package.
+
+```{r SeqExpressionSet}
+set_24 <- newSeqExpressionSet(raw_count_24,
+      phenoData = AnnotatedDataFrame(data.frame(conditions = 
+                                                factor(1:ncol(raw_count_24)),
+      row.names = colnames(raw_count_24))
+    ),
+    featureData = AnnotatedDataFrame(data.frame(gc = gc_24[, 2], l = gc_24[, 1]))
+)
+set_24
+```
+
+To visualize the GC content for each sample we use the `biasPlot()` function.
+
+```{r BiasPlot}
+s_24 <- EDASeq::biasPlot(set_24, "gc", ylim = c(0, 10), log = TRUE)
+```
+
+As you can see, you have a curve for each sample that indicates the trend of the GC content in logarithmic base.
+In this case, there are some samples that have very different trends from the others. So normalization seems necessary.
+
+Next, let's examine the trend of the log-ratio of genes expression between the samples 1 and 3 as the GC content changes:
+
+```{r GCcontentBiasPlot}
+lrt_24 <- log(raw_count_24[, 1] + 1) - log(raw_count_24[, 3] + 1)
+biasBoxplot(lrt_24, gc_24[, 2], outline = FALSE, xlab = "GC-content", ylab = "Gene expression", las = 2, cex.axis = 0.5)
+```
+
+The same for samples 1 and 12.
+
+```{r}
+lrt_24 <- log(raw_count_24[, 1] + 1)- log(raw_count_24[, 12] + 1)
+biasBoxplot(lrt_24, gc_24[, 2], outline = FALSE, xlab = "GC-content", ylab = "Gene expression", las = 2, cex.axis = 0.5)
+```
+
+In the next tutorial we'll see the within-samples normalization for GC-content bias and the between-samples normalization.
+
+## Lab 2
+# Filtering 
+
+In the previous practical lesson, genes with all zero counts were removed. However, this is not sufficient because it does not eliminate genes with very low counts. We decided to keep only the genes with raw counts $\geq 10$.
+
+```{r RawCounts_gt_10}
+data_24_sel <- data_24[rowSums(assay(data_24, "raw_counts")) >= 10, ]
+set_sel_24 <- set_24[rownames(set_24) %in% rowData(data_24_sel)$ensid, ]
+```
+
+# Normalization
+
+Normalization of RNA-seq read counts is an essential procedure that corrects for non-biological variation of samples due to library preparation, sequencing read depth, gene length, mapping bias and other technical issues. Normalization is composed of two main steps: within-sample normalization and between-sample normalization.
+
+## Within samples normalization
+
+The within-samples normalization is necessary for GC-content bias.
+
+```{r}
+before_24 <- biasPlot(set_sel_24, "gc", ylim = c(0, 10), log = TRUE)
+```
+
+As you can see, the plot is different from the one obtained in the previous lesson, because we remove the genes with very low counts. However, some samples have very different trends from the others. So, normalization is necessary.
+
+To compute the within normalization we use the `withinLaneNormalization()` function of the *EDASeq* package.
+
+```{r withinLaneNormalization}
+wt_24 <- withinLaneNormalization(set_sel_24, "gc" , which = "upper", offset = TRUE)
+
+after_24 <- biasPlot(wt_24, "gc", ylim = c(0, 10), log = TRUE)
+```
+
+## Between samples normalization
+
+After the within normalization we can compute the between normalization, using two R packages: **edgeR** and **EDASeq**.
+
+We can utilize the `betweenLaneNormalization()` function from the **EDASeq** package to perform normalization using both the full and upper quartile methods.
+
+```{r betweenLaneNormalization}
+# offset = TRUE: normalized value returns as an offset leaving the original counts unchanged
+set_full_24 <- betweenLaneNormalization(set_24, which = "full", offset = TRUE)
+set_uq_24 <- betweenLaneNormalization(set_24, which = "upper", offset = TRUE)
+
+# save the normalized matrix into an object
+full_24 <- set_full_24@assayData$normalizedCounts
+uq_edaseq_24 <- set_uq_24@assayData$normalizedCounts
+```
+
+Instead with **edgeR** package, we can use the `calcNormFactors` and `cpm` functions to estimate the normalizing factors for `RLE`(Relative Log Expression), `TMM` (Trimmed Mean of M-values), `upper quartile`, and `total count` normalizations.
+
+TMM (Trimmed Mean of M-values) is a robust normalization method in RNA-seq, primarily used in edgeR to account for differences in library sizes and composition. It assumes most genes are not differentially expressed, scaling raw counts based on a reference sample to calculate factors that normalize expression levels.
+
+Relative Log Expression (RLE) is a diagnostic tool used in high-throughput data analysis (like RNA-Seq or microarrays) to visualize technical variation and assess normalization success. It works by calculating the median expression for each gene across all samples and determining the log-ratio of each sample's gene expression to that median.
+
+```{r counts}
+raw_count_24 <- counts(set_24)
+
+lbs_24 <- normLibSizes(raw_count_24, method = "RLE")
+rle_24 <- cpm(raw_count_24, lib.size = lbs_24 * colSums(raw_count_24))
+
+lbs_24 <- normLibSizes(raw_count_24, method = "TMM")
+tmm_24 <- cpm(raw_count_24, lib.size = lbs_24 * colSums(raw_count_24))
+
+lbs_24 <- normLibSizes(raw_count_24, method = "upperquartile")
+uq_24 <- cpm(raw_count_24, lib.size = lbs_24 * colSums(raw_count_24))
+
+tc_24 <- cpm(raw_count_24)
+```
+
+### Boxplot
+
+Expression matrix visualization after normalization using boxplot.
+
+```{r ExpressionMatrixVisualization}
+boxplot(log2(raw_count_24 + 1), outline = FALSE,  las=2,
+        ylab = "log(count+1)", main = "Before normalization", xaxt = 'n')
+
+boxplot(log2(tc_24 + 1), outline = FALSE, las = 2,
+        ylab = "log(count+1)", main = "Boxplot Total count", xaxt='n')
+
+boxplot(log2(rle_24 + 1), outline=FALSE,  las=2,
+        ylab = "log(count+1)", main = "Boxplot RLE", xaxt = 'n')
+
+boxplot(log2(tmm_24 + 1), outline=FALSE,  las=2,
+        ylab = "log(count+1)", main = "Boxplot TMM", xaxt = 'n')
+
+boxplot(log2(uq_24 + 1), outline=FALSE,  las=2,
+        ylab = "log(count+1)", main = "Boxplot Upper quartile", xaxt = 'n')
+
+boxplot(log2(full_24 + 1), outline=FALSE,  las=2,
+        ylab = "log(count+1)", main = "Boxplot full", xaxt = 'n')
+```
+
+### RLE plot
+
+Expression matrix visualization after normalization using RLE plot.
+
+```{r RLEPlot}
+col_24 <- data_24$state
+levels(col_24) <- c(1:length(levels(col_24)))
+
+EDASeq::plotRLE(raw_count_24, outline = FALSE,  las=2, col=col_24,
+        ylab = "RLE", main = "RLE before normalization", xaxt='n')
+
+EDASeq::plotRLE(tc_24, outline = FALSE,  las=2, col=col_24,
+        ylab = "RLE", main = "RLE total count", xaxt='n')
+
+EDASeq::plotRLE(tmm_24, outline = FALSE,  las=2, col=col_24,
+        ylab = "RLE", main = "RLE TMM", xaxt='n')
+
+EDASeq::plotRLE(rle_24, outline = FALSE,  las=2, col=col_24,
+        ylab = "RLE", main = "RLE RLE", xaxt='n')
+
+EDASeq::plotRLE(uq_24, outline = FALSE,  las=2, col=col_24,
+        ylab = "RLE", main = "RLE upper quartile", xaxt='n')
+
+EDASeq::plotRLE(full_24, outline = FALSE,  las=2, col=col_24,
+        ylab = "RLE", main = "RLE full", xaxt='n')
+```
+
+### Correlation plot
+
+Given the TMM normalization, we visualize the correlation plot, estimating the Pearson correlation index matrix with the *corrplot* function:
+
+```{r CorrelationPlot}
+colnames_24 <- colnames(tmm_24)
+colnames(tmm_24) <- substr(colnames(tmm_24), 4, 12)
+m_24 <- cor(log1p(tmm_24))
+
+corrplot(m_24, method = "color", order = 'hclust', tl.cex=0.2)
+```
+
+Note that all pairs of samples are characterized by high correlations, there are no evident outliers in our cohort.
+
+### Principal component analysis
+
+PCA analysis in the context of normalization performance assessment is useful only if  an *a priori* biological information on sample stratification is available. It is reasonable to select the normalization that better recognize the known stratification.
+
+Now let's see the basic functions of R to make *PCA* and then we will use the data normalized with the *TMM* to explore the results. Finally we will use the *plotPCA* function to plot scores across all the normalizations.
+
+```{r}
+data_24_pca <- prcomp(t(log1p(tmm_24)))
+tmp_24 <- summary(data_24_pca)
+tmp_24$importance[, 1:18]
+
+autoplot(data_24_pca)
+screeplot(data_24_pca, type = c("lines"))  
+```
+
+Now we use the *plotPCA*:
+  
+```{r}
+EDASeq::plotPCA(tc_24, k=3, labels=F, col=as.numeric(col_24), pch=20)
+EDASeq::plotPCA(tmm_24, k=3, labels=F, col=as.numeric(col_24), pch=20)
+EDASeq::plotPCA(rle_24, k=3, labels=F, col=as.numeric(col_24), pch=20)
+```
+
+The plots are about the same among the 3 normalizations, so they are
+equivalent.
+
+## Lab 3
+# Exploring the mean-variance relationship
+
+First we explore the *mean-variance* relationship on our dataset.
+
+In RNA-seq data the variance is typically larger than the mean, a phenomenon called overdispersion. The distribution for over-dispersed counts is the Negative Binomial distribution (NB), where $Var(Y)=μ+ϕμ^2$ (quadratic relationship between the mean and the variance).
+
+To estimate the dispersion we'll use **edgeR** package.
+
+```{r}
+design_24 <- model.matrix(~ state, data = colData(data_24))
+head(design_24)
+# Create a DGEList object
+dge_24 <- DGEList(assay(data_24, "raw_counts"))
+```
+
+Then, scaling factors are computed using the `calcNormFactors()` function to convert the observed library sizes into normalized values.
+
+The effective library sizes used in downstream analyses are calculated as `lib.size * norm.factors`, where `lib.size` contains the original library sizes and `norm.factors` is the vector of scaling factors computed by this function. The effective library sizes are incorporated into the model that estimates dispersion. The function `plotMeanVar()` in edgeR is used to visualize the relationship between gene expression levels (mean) and variability (variance).
+
+```{r, warning=FALSE, message=FALSE}
+dge_24 <- calcNormFactors(dge_24, method="TMM")
+dge_24 <- estimateDisp(dge_24, design_24)
+
+plotMeanVar(dge_24, show.raw.vars = TRUE, show.ave.raw.vars = F, NBline = TRUE, show.tagwise.vars = TRUE)
+```
+
+Each dot represents a gene. The x-axis shows the average expression level (mean), and the y-axis shows the variance. Both axes are on a log scale.
+
+The black line represents the linear mean–variance relationship expected under a Poisson distribution, while the blue line represents the mean–variance trend under the negative binomial distribution. As gene expression increases, the variance also increases. Most points lie above the black line, indicating that the data are more variable than expected under a Poisson model. The blue line follows the cloud of points much more closely, suggesting that the negative binomial model provides a better fit.
+
+The grey points represent the observed (raw) variances, while the dispersion estimates gene by gene are represented by the light blue dots.
+
+```{=html}
+<style>
+  div.blue{background-color:#e6f0ff; border-radius: 4px; padding: 15px;}
+  div.pink{background-color:#ffffcc; border-radius: 4px; padding: 15px;}
+</style>
+```
+
+# Identification of differentially expressed genes
+
+The `glmFit()` function estimates the parameters of a generalized linear model (GLM). After normalization, the counts are effectively adjusted through scaling factors. To account for these normalized library sizes, an offset is included in the GLM: $log(E[Y|X]) = X\beta + O$, where $log(E[Y|X])$ is the link function for negative binomial distribution and $X\beta$ represents the linear predictor, and $O$ is the offset that incorporates the effective library sizes.
+
+```{r, message=FALSE}
+fit_24 <- glmFit(dge_24, design_24)
+fit_24$offset[]
+```
+
+Once the model parameters have been estimated, we can perform the differential expression test for each gene, using the `glmLRT()` function. By specifying `coef = 2` (prox.-proliferative vs prox.-inflammatory), the null hypothesis is $H0:\beta_2=0$, which tests whether the effect of this condition is significantly different from zero. Let's see the first ten differentially expressed genes sorted by log fold-change (*logFC*), using the `topTags()` function:
+
+```{r, message=FALSE}
+res_24 <- glmLRT(fit_24, coef=2)
+topTags(res_24, sort.by="logFC")
+```
+
+For each gene:
+
+-   **logFC** measures how much the gene changes between the two conditions;
+-   **logCPM** is the average expression
+-   **LR** is the test statistic
+-   **P-value** is the p-value
+-   **FDR** is adjusted p-value (multiple testing)
+
+Let's visualize the number of differentially expressed genes using a threshold of $FDR<0.05$:
+
+```{r, message=FALSE}
+tab_24 <- topTags(res_24, n=Inf)
+tab_24 <- tab_24$table
+head(tab_24)
+
+de_24 <- tab_24[tab_24$FDR <0.05,]
+dim(de_24)
+```
+
+# DEGs exploration
+
+## MD plot
+
+First, we visualize the MD plot, comparing the log-fold changes (**logFC**) with the average log counts per million (**logCPM**). Black points correspond to non-significant genes, while red and blue points indicate up- and down-regulated genes, respectively.
+
+```{r, message=FALSE}
+plotMD(res_24)
+```
+
+## Volcano plot
+
+A volcano plot is a graphical representation of **logFC** vs **-log10(PValue)** with the possibility to highlight some genes of interest
+
+```{r, message=FALSE}
+names_24 <- row.names(de_24)
+
+tab_24$sign <- NA
+tab_24$sign[tab_24$logFC < 0] <- "Down"
+tab_24$sign[tab_24$logFC > 0] <- "Up"
+tab_24$sign[tab_24$FDR >= 0.05] <- "NoSig"
+tab_24$gene <- rownames(tab_24)
+
+ggplot(tab_24, aes(x = logFC, y = -log10(PValue), color = sign)) + geom_point() + theme_classic() +
+  scale_color_manual(values = c("Down" = "blue", "Up" = "red", "NoSig" = "black")) +
+  geom_text_repel(data = tab_24[1:20, ], aes(label = gene), size = 2.5, max.overlaps = 20) 
+```
+
+## P-value distribution
+
+Last, we check the distribution of the *p-values*. In an unbiased situation we expect a peak on low values mixed with a uniform distribution. 
+
+```{r, message=FALSE}
+hist(tab_24$PValue, main="p-values distribution")
+```
+
+# Cluster Analysis
+
+In genomics, cluster analyses are used in the exploratory analysis phase (QC control) and results exploration. It is particularly useful for identifying genes and patients with similar expression profiles.
+
+## Heatmaps
+
+First, we used the TMM-normalized matrix and selected only the differentially expressed genes.
+
+```{r}
+raw_count_24 <- assay(data_24, "raw_counts")
+lbs_24 <- normLibSizes(raw_count_24, method = "TMM")
+tmm_24 <- cpm(raw_count_24, lib.size = lbs_24 * colSums(raw_count_24))
+
+data_24_degs <- tmm_24[names_24, ]
+```
+
+To visualize a heatmap, we can use the `pheatmap()` function from the **pheatmap** package. The `scale="row"` option helps interpret the data by centering and scaling each gene—dividing its values by the mean across all patients—so that relative expression patterns are easier to compare.
+
+```{r, message=FALSE}
+Col_24 <- data.frame(Subtype=data_24$state)
+rownames(Col_24) <- colnames(data_24)
+
+ann_colors_24 = list(Subtype = c("control"="blue","sfn"="lightblue"))
+
+g_24 <- pheatmap(log1p(data_24_degs), show_colnames = FALSE, scale = "row", show_rownames = FALSE,
+         drop_levels = TRUE, annotation_colors = ann_colors_24, annotation_col = Col_24)
+```
+
+## Silhouette index
+
+We cut the tree into 2 clusters and compute the distance matrix using the normalized matrix. To evaluate the performance of the clustering we can use the **silhouette index** through the `silhouette()` function from **cluster** package. The silhouette index measures how well each sample fits into its assigned cluster compared to other clusters. For each sample $i$,
+
+$s(i) = \frac{b(i) - a(i)}{\max\{a(i),\, b(i)\}}$,
+
+where $a(i)$ is average distance to all other points in the same cluster and $b(i)$ is average distance to points in the nearest different cluster.
+
+```{r, message=FALSE}
+cut_24 <- cutree(g_24$tree_col, k = 2)
+
+dist_mat_24 <- dist(t(log1p(data_24_degs)))
+plot(silhouette(cut_24, dist_mat_24), col=c("#2E86C1", "#EC7063"), border=NA)
+```
+
+The silhouette index ranges from −1 to +1: values close to +1 indicate that a sample is well clustered; values around 0 suggest an uncertain assignment; and negative values indicate likely misclassification, as the sample appears more similar to elements of another cluster than to those within its assigned cluster.
+
+The average silhouette width can be used as a global measure of clustering quality. In this case, it is equal to 0.3, indicating that the clustering has a moderate structure.
+
+
+# Lab 4
+In this lab we will use genes found to be significantly differential expressed between prox.prolif vs prox.inflam the variable **paper_expression_subtype** to perform gene set enrichment analyses. We now resume the commands from the previous practical lab:
+
+```{r}
+topTags(res_24, sort.by = "logFC")
+
+top_24 <- topTags(res_24, n = Inf)$table
+deg_24 <- top_24[top_24$FDR <= 0.05,]
+dim(deg_24)
+```
+# Gene Set Analysis with ORA Method 
+Over-Representation Analysis (ORA) tests whether a gene set is statistically over-represented in your DEG list compared to what you would expect by chance, given the size of the universe. 
+
+To check if there are Gene Ontology categories or biological pathways enriched in our DEG list we will use the **ClusterProfiler** package and the functions *enrichKEGG* (for KEGG pathways), *enrichPathway* (for Reactome pathway) and *enrichGO* (for Gene Ontology categories). All these function implement the Fisher exact test.
+
+First of all we need to create the ID list of i (the differentially expressed genes) and of ii, the reference universe (all the quantified genes):
+
+```{r}
+universo_24 <- substr(row.names(top_24), 1, 15)
+sign_24 <- substr(row.names(deg_24), 1, 15)
+
+universo.entrez_24 <- mapIds(org.Hs.eg.db, # genome wide annotation for Human that contains Entrez Gene identifiers
+                    keys = universo_24, #Column containing Ensembl gene ids
+                    column = "ENTREZID",
+                    keytype = "ENSEMBL")  
+
+sign.entrez_24 <- mapIds(org.Hs.eg.db,
+                    keys = sign_24, #Column containing Ensembl gene ids
+                    column = "ENTREZID",
+                    keytype = "ENSEMBL")
+universo.entrez_24 <- as.character(universo.entrez_24)
+sign.entrez_24 <- as.character(sign.entrez_24)
+
+length(sign.entrez_24)
+length(universo.entrez_24)
+```
+
+## KEGG pathways
+
+With the ID vectors that we have created previously we can estimate the enrichment scores on all the available KEGG pathways:
+
+```{r}
+kk_24 <- enrichKEGG(gene = sign.entrez_24,
+                 universe = universo.entrez_24,
+                 organism = 'hsa',
+                 keyType = 'ncbi-geneid',
+                 pvalueCutoff = 0.05,
+                 pAdjustMethod = "BH")
+dim(kk_24)
+kk_24@result[1:10,]
+# GeneRtaio = numerator = # of DEGS in pathway, denominator = total number of DEGs
+# VgRatio =   numerator = # of our genes in all pathways,  denominator = all genes
+```
+
+#```{r, warning=FALSE}
+```{r}
+barplot(kk_24, showCategory = 10) #Quickly rank terms by the number of genes involved
+```
+
+```{r}
+dotplot(kk_24, showCategory = 10) #Useful when you want to distinguish between a term that is significant but contains few of your genes vs. one where your DEGs dominate the pathway.
+```
+
+```{r}
+cnetplot(kk_24, showCategory = 10) # Useful to see gene overlap between terms and identify multi-pathway genes
+```
+
+```{r}
+heatplot(kk_24, showCategory = 10) #Reveals which genes are shared across multiple terms and which are unique to one pathway
+```
+
+```{r}
+edo_24 <- pairwise_termsim(kk_24, showCategory = 10)
+emapplot(edo_24, showCategory = 10) #Enrichment Map, terms are nodes; edges connect terms that share genes
+obj_24 <- upsetplot(edo_24, 8)
+obj_24 #Use this to understand the unique vs. shared gene membership across enriched categories.
+# Noting redundancies in genes in mulitple pathways.  Redundnacy can lead to miselading ??
+```
+
+Let's give a look at the genes that belong to the pathway with ID **hsa05332**. We will use the **pathview** function from the *pathview* package:
+
+```{r, message=FALSE}
+pathview(gene.data = sign.entrez_24, pathway.id = "hsa05215", species = "hsa")
+knitr::include_graphics("hsa05215.pathview.png")
+```
+
+Try to compute the pathway analysis using Reactome database (*enrichPathway* function) and Gene Ontology (*enrichGO* function; specify Biological Process (BP) as category). 
+
+## Reactome database
+
+```{r, message=FALSE}
+# This is the same as the previous enrichKEGG test, but with a different DB
+kk_24 <- enrichPathway(gene = sign.entrez_24,
+                 universe = universo.entrez_24,
+                 organism = 'human',
+                 pvalueCutoff = 0.05,
+                 pAdjustMethod = "BH")
+kk_24@result[1:10, 1:6]
+```
+
+```{r}
+barplot(kk_24)
+dotplot(kk_24)
+cnetplot(kk_24)
+heatplot(kk_24, showCategory = 10)
+
+edo_24 <- pairwise_termsim(kk_24)
+emapplot(edo_24)
+upsetplot(edo_24, 5)
+```
+
+## Gene Ontology categories
+
+We run the same analyses using GO terms using the Biological Process (BP) the  Molecular function (MF) and the Cellular component (CC) categories:
+
+```{r, message=FALSE}
+ego_24 <- enrichGO(gene = sign.entrez_24,
+              universe = universo.entrez_24,
+              OrgDb = 'org.Hs.eg.db',
+              keyType = "ENTREZID",
+              ont = "BP",
+              pvalueCutoff = 0.05,
+              pAdjustMethod = "BH",
+              readable = TRUE)
+
+ego_24@result[1:10,1:6]
+```
+
+```{r}
+barplot(ego_24)
+upsetplot(ego_24, 5)
+```
+
+# GSEA (Gene Set Enrichment Analysis) method
+
+## COMPARE TO ORA method
+
+GSEA (Gene Set Enrichment Analysis) does not require a binary DEG/non-DEG threshold.
+Instead, it works on the full ranked gene list: all quantified genes are sorted by a continuous statistic (logFC), and the algorithm asks whether the members 
+of a given gene set tend to cluster at the top (up-regulated) or 
+bottom (down-regulated) of this ranking, beyond what is expected by chance. This makes it more sensitive to moderate changes across a pathway.
+
+
+```{r}
+tt_24 <- top_24$logFC
+names(tt_24) <- universo.entrez_24
+
+table(duplicated(names(tt_24)))
+tt_24 <- tt_24[!duplicated(names(tt_24))]
+
+sort_tt_24 <- sort(tt_24, decreasing = TRUE)
+```
+
+## LFC (Log-Fold change) does not take variance into account.  Negaive Binomial is better
+
+Below we will see the results for KEGG and GO only but with  **gsePathway** function we can obtain the results for Reactome pathways.
+
+## KEGG pathway
+
+The function to perform the analysis is **gseKEGG**:
+
+```{r, warning=FALSE}
+kk2_24 <- gseKEGG(geneList = sort_tt_24,
+              organism = "hsa",
+              pvalueCutoff = 0.05)
+
+kk2_24@result[1:10, 1:7] # The key output is the Normalized Enrichment Score (NES)
+```
+
+The distribution of the statistics in the various gene sets:
+
+```{r}
+gseaplot(kk2_24, geneSetID = "hsa03040") #Gene set enriched in down-regulated genes
+ridgeplot(kk2_24, label_format = 50, showCategory = 20) #Shows the distribution of the ranking statistic (logFC) for genes belonging to each enriched gene set. Useful for interpreting the direction of enrichment in GSEA results.
+```
+```{r}
+gseaplot(kk2_24, geneSetID = "hsa00053") #Gene set enriched in top-regulated genes
+```
+
+The same analyzes can be performed on the Gene Ontology, here we will use only BP (biological processes) but you can perform the analyses using all the categories (MF and CC)
+
+## GO categories
+
+```{r, warning=FALSE}
+kkGO_24 <- gseGO(geneList = sort_tt_24,
+          ont = "BP",
+          OrgDb='org.Hs.eg.db',
+          keyType = "ENTREZID",
+          pAdjustMethod = "BH")
+
+kkGO_24@result[1:10, 1:6]
+```
+
+Let's see the distribution of the statistics in the various gene sets:
+
+```{r}
+gseaplot(kkGO_24, geneSetID = "GO:0006334")
+ridgeplot(kkGO_24, label_format = 50, showCategory = 20) # all shown gene sets are significant well beyond the resolution of the test --> To rank and interpret results look at the NES instead of the p.adjust
+dotplot(kkGO_24)
+```

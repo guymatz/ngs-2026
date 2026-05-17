@@ -80,14 +80,18 @@ req_pkgs <- c(
     # https://cran.r-project.org/web/packages/ggnewscale
     # Multiple Fill and Colour Scales in 'ggplot2'
     "ggnewscale",
+
+    # https://ggrepel.slowkow.com/
+    # provides geoms for ggplot2 to repel overlapping text labels
+    "ggrepel",
+    
+    # https://cran.r-project.org/web/packages/ggridges
+    # Ridgeline Plots in 'ggplot2'
+    "ggridges",
     
     # https://cran.r-project.org/web/packages/ggupset
     # Combination Matrix Axis for 'ggplot2' to Create 'UpSet' Plots
     "ggupset",
-
-    # https://cran.r-project.org/web/packages/ggridges
-    # Ridgeline Plots in 'ggplot2'
-    "ggridges",
 
     # https://bioconductor.org/packages/release/bioc/html/enrichplot.html
     # Visualization of Functional Enrichment Result
@@ -211,7 +215,7 @@ col_6 <- data_6$state
 #levels(col_6) <- c(1:length(col_6))
 
 boxplot(log1p(raw_count_6), col = group_colors_6, xlab = "Sample", ylab = "log1p expression",  las = 2, cex.axis = 0.7)
-legend("top", legend = levels(col_6), col = 1:length(levels(col_6)), pch = 20, cex = 0.7, ncol = 2)
+legend("top", legend = levels(col_6), col = group_colors_6, pch = 20, cex = 0.7, ncol = 2)
 
 title("At 6 Hours")
 ```
@@ -653,7 +657,7 @@ To check if there are Gene Ontology categories or biological pathways enriched i
 
 First of all we need to create the ID list of i (the differentially expressed genes) and of ii, the reference universe (all the quantified genes):
 
-```{r, eval = FALSE, message=FALSE}
+```{r, message=FALSE}
 universo_6 <- substr(row.names(top_6), 1, 15)
 sign_6 <- substr(row.names(deg_6), 1, 15)
 
@@ -677,7 +681,7 @@ length(universo.entrez_6)
 
 With the ID vectors that we have created previously we can estimate the enrichment scores on all the available KEGG pathways:
 
-```{r, eval = FALSE, message=FALSE}
+```{r, message=FALSE}
 kk_6 <- enrichKEGG(gene = sign.entrez_6,
                  universe = universo.entrez_6,
                  organism = 'hsa',
@@ -705,7 +709,7 @@ obj_6 #Use this to understand the unique vs. shared gene membership across enric
 
 Let's give a look at the genes that belong to the pathway with ID **hsa05332**. We will use the **pathview** function from the *pathview* package:
 
-```{r, eval = FALSE, message=FALSE}
+```{r, message=FALSE}
 pathview(gene.data = sign.entrez_6, pathway.id = "hsa05215", species = "hsa")
 knitr::include_graphics("hsa05215.pathview.png")
 ```
@@ -714,7 +718,7 @@ Try to compute the pathway analysis using Reactome database (*enrichPathway* fun
 
 ## Reactome database
 
-```{r, eval = FALSE, message=FALSE}
+```{r, message=FALSE}
 # This is the same as the previous enrichKEGG test, but with a different DB
 kk_6 <- enrichPathway(gene = sign.entrez_6,
                  universe = universo.entrez_6,
@@ -724,7 +728,7 @@ kk_6 <- enrichPathway(gene = sign.entrez_6,
 kk_6@result[1:10, 1:6]
 ```
 
-```{r, eval = FALSE}
+```{r}
 barplot(kk_6)
 dotplot(kk_6)
 cnetplot(kk_6)
@@ -739,7 +743,7 @@ upsetplot(edo_6, 5)
 
 We run the same analyses using GO terms using the Biological Process (BP) the  Molecular function (MF) and the Cellular component (CC) categories:
 
-```{r, eval = FALSE, message=FALSE}
+```{r, message=FALSE}
 ego_6 <- enrichGO(gene = sign.entrez_6,
               universe = universo.entrez_6,
               OrgDb = 'org.Hs.eg.db',
@@ -752,7 +756,7 @@ ego_6 <- enrichGO(gene = sign.entrez_6,
 ego_6@result[1:10,1:6]
 ```
 
-```{r, eval = FALSE}
+```{r}
 barplot(ego_6)
 upsetplot(ego_6, 5)
 ```
@@ -767,7 +771,7 @@ of a given gene set tend to cluster at the top (up-regulated) or
 bottom (down-regulated) of this ranking, beyond what is expected by chance. This makes it more sensitive to moderate changes across a pathway.
 
 
-```{r, eval = FALSE}
+```{r}
 tt_6 <- top_6$logFC
 names(tt_6) <- universo.entrez_6
 
@@ -785,7 +789,7 @@ Below we will see the results for KEGG and GO only but with  **gsePathway** func
 
 The function to perform the analysis is **gseKEGG**:
 
-```{r, eval = FALSE}
+```{r}
 kk2_6 <- gseKEGG(geneList = sort_tt_6,
               organism = "hsa",
               pvalueCutoff = 0.05)
@@ -795,11 +799,11 @@ kk2_6@result[1:10, 1:7] # The key output is the Normalized Enrichment Score (NES
 
 The distribution of the statistics in the various gene sets:
 
-```{r, eval = FALSE}
+```{r}
 gseaplot(kk2_6, geneSetID = "hsa03040") #Gene set enriched in down-regulated genes
 ridgeplot(kk2_6, label_format = 50, showCategory = 20) #Shows the distribution of the ranking statistic (logFC) for genes belonging to each enriched gene set. Useful for interpreting the direction of enrichment in GSEA results.
 ```
-```{r, eval = FALSE}
+```{r}
 gseaplot(kk2_6, geneSetID = "hsa00053") #Gene set enriched in top-regulated genes
 ```
 
@@ -807,7 +811,7 @@ The same analyzes can be performed on the Gene Ontology, here we will use only B
 
 ## GO categories
 
-```{r, eval = FALSE}
+```{r}
 kkGO_6 <- gseGO(geneList = sort_tt_6,
           ont = "BP",
           OrgDb='org.Hs.eg.db',
@@ -819,7 +823,7 @@ kkGO_6@result[1:10, 1:6]
 
 Let's see the distribution of the statistics in the various gene sets:
 
-```{r, eval = FALSE}
+```{r}
 gseaplot(kkGO_6, geneSetID = "GO:0006334")
 ridgeplot(kkGO_6, label_format = 50, showCategory = 20) # all shown gene sets are significant well beyond the resolution of the test --> To rank and interpret results look at the NES instead of the p.adjust
 dotplot(kkGO_6)
